@@ -1,0 +1,1948 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#100c14">
+<meta name="description" content="レトロドライブ — 80年代のアーケード風ドット絵で、車の後ろから景色が流れる風景アプリ">
+<title>レトロドライブ</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23140c18'/%3E%3Crect x='3' y='8' width='10' height='4' fill='%23e23d3a'/%3E%3Crect x='5' y='6' width='6' height='2' fill='%23163044'/%3E%3Crect x='3' y='9' width='2' height='2' fill='%23ffb0a4'/%3E%3Crect x='11' y='9' width='2' height='2' fill='%23ffb0a4'/%3E%3C/svg%3E">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #0c0a10; color: #f4ead8;
+    overflow: hidden; position: fixed; inset: 0; width: 100%;
+    font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Noto Sans JP", sans-serif;
+    user-select: none; touch-action: none;
+  }
+  #stage {
+    position: fixed; inset: 0; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #screen { position: relative; line-height: 0; }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #100c14;
+  }
+  #crt {
+    display: none; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  }
+  #crt.on {
+    display: block;
+    background:
+      radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.38) 100%),
+      repeating-linear-gradient(to bottom, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply;
+  }
+  #splash {
+    position: fixed; left: 0; right: 0; top: 8vh; z-index: 4;
+    text-align: center; pointer-events: none;
+    animation: splash 5.4s ease forwards;
+  }
+  #splash .t1 {
+    font-size: clamp(22px, 4vw, 40px); letter-spacing: .18em;
+    text-shadow: 0 2px 0 #1a1018, 0 0 18px rgba(0,0,0,.45);
+  }
+  #splash .t2 { margin-top: .35em; font-size: clamp(13px, 2vw, 16px); letter-spacing: .28em; opacity: .85; }
+  @keyframes splash {
+    0% { opacity: 0; transform: translateY(6px); }
+    14% { opacity: 1; transform: none; }
+    68% { opacity: 1; }
+    100% { opacity: 0; visibility: hidden; }
+  }
+  #menuBtn {
+    position: fixed; top: 10px; right: 10px; z-index: 6;
+    background: rgba(12,10,16,.45); color: #f4ead8;
+    border: 1px solid rgba(244,234,216,.45);
+    padding: 6px 10px; font: inherit; font-size: 13px; letter-spacing: .12em;
+    cursor: pointer; min-height: 36px;
+  }
+  #menuBtn:hover, #menuBtn:focus-visible { background: rgba(12,10,16,.72); }
+  #pauseTag {
+    position: fixed; left: 12px; top: 12px; z-index: 6;
+    font-size: 13px; letter-spacing: .14em;
+    background: rgba(12,10,16,.5); padding: 6px 10px;
+    border: 1px solid rgba(244,234,216,.35);
+  }
+  #pauseTag[hidden] { display: none !important; }
+  #panel {
+    position: fixed; z-index: 7; left: 50%; bottom: 12px; transform: translateX(-50%);
+    width: min(640px, calc(100vw - 16px));
+    max-height: min(48vh, 430px); overflow: auto;
+    background: rgba(10,8,14,.88); color: #f4ead8;
+    border: 2px solid #e7c48a;
+    box-shadow: 4px 4px 0 rgba(0,0,0,.45);
+    padding: 10px 12px 12px;
+  }
+  #panel[hidden] { display: none !important; }
+  #panel h2 {
+    margin: 0 0 8px; font-size: 15px; font-weight: 700; letter-spacing: .2em;
+  }
+  #status { font-size: 12px; letter-spacing: .08em; opacity: .8; margin: -4px 0 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+  .row span.k { flex: 0 0 4.5em; font-size: 12px; letter-spacing: .08em; opacity: .85; }
+  .row button, .widebtn {
+    font: inherit; font-size: 13px; color: #f4ead8; background: transparent;
+    border: 1px solid rgba(231,196,138,.55);
+    padding: 6px 8px; min-height: 36px; cursor: pointer;
+  }
+  .row button[aria-pressed="true"] { background: #e7c48a; color: #1a120c; border-color: #e7c48a; }
+  .slider { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+  .slider input[type="range"] { flex: 1; accent-color: #e87848; min-height: 36px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .hint { margin: 8px 0 0; font-size: 11px; line-height: 1.45; opacity: .72; }
+  #steerHint[hidden] { display: none !important; }
+  button:focus-visible, input:focus-visible { outline: 2px solid #fff1c9; outline-offset: 2px; }
+  @media (max-width: 720px), (orientation: portrait) {
+    #panel { max-height: 46vh; bottom: 8px; }
+    #splash { top: 6vh; }
+    .row span.k { flex-basis: 100%; }
+  }
+</style>
+</head>
+<body>
+<div id="stage"><div id="screen"><canvas id="c" width="320" height="180" aria-label="レトロドライブの景色"></canvas><div id="crt"></div></div></div>
+<div id="splash" aria-hidden="true"><div class="t1">レトロドライブ</div><div class="t2">ひろしさんへ</div></div>
+<button id="menuBtn" type="button" aria-expanded="false" aria-controls="panel">設定</button>
+<div id="pauseTag" hidden>停止中</div>
+<div id="panel" hidden role="dialog" aria-label="設定">
+  <h2>レトロドライブ</h2>
+  <div id="status">いま：森</div>
+  <div class="actions">
+    <button type="button" class="widebtn" id="btnPause">一時停止</button>
+    <button type="button" class="widebtn" id="btnFull">全画面</button>
+    <button type="button" class="widebtn" id="btnSound" aria-pressed="false">音：なし</button>
+  </div>
+  <label class="slider">速さ <span id="speedVal">1.0×</span>
+    <input id="speed" type="range" min="0.55" max="1.65" step="0.05" value="1" aria-label="速さ">
+  </label>
+  <div class="row" data-k="route"><span class="k">道のり</span>
+    <button type="button" data-v="auto" aria-pressed="true">自動</button>
+    <button type="button" data-v="forest">森</button>
+    <button type="button" data-v="desert">砂漠</button>
+    <button type="button" data-v="coast">海岸</button>
+    <button type="button" data-v="city">街</button>
+    <button type="button" data-v="country">田舎</button>
+    <button type="button" data-v="mountain">山</button>
+  </div>
+  <div class="row" data-k="time"><span class="k">時刻</span>
+    <button type="button" data-v="auto" aria-pressed="true">自動</button>
+    <button type="button" data-v="dawn">朝</button>
+    <button type="button" data-v="day">昼</button>
+    <button type="button" data-v="dusk">夕</button>
+    <button type="button" data-v="night">夜</button>
+  </div>
+  <div class="row" data-k="manual"><span class="k">ハンドル</span>
+    <button type="button" data-v="0" aria-pressed="true">まかせる</button>
+    <button type="button" data-v="1">自分で</button>
+  </div>
+  <div class="row" data-k="crt"><span class="k">走査線</span>
+    <button type="button" data-v="0" aria-pressed="true">なし</button>
+    <button type="button" data-v="1">うすく</button>
+  </div>
+  <label class="slider">音量 <span id="volVal">40%</span>
+    <input id="volume" type="range" min="0" max="1" step="0.05" value="0.4" aria-label="音量">
+  </label>
+  <p id="steerHint" class="hint" hidden>左右キー、または画面の左右の端。はなすと中央に戻ります。</p>
+  <p class="hint">Space 一時停止 · F 全画面 · 音はボタンを押すまで鳴りません</p>
+</div>
+<script>
+'use strict';
+(function () {
+  const ORDER = ['forest', 'desert', 'coast', 'city', 'country', 'mountain'];
+  const NAMES = { forest: '森', desert: '砂漠', coast: '海岸', city: '街', country: '田舎', mountain: '山', auto: '自動' };
+  const SEG = 200;
+  const DRAW = 150;
+  const CAM_H = 1000;
+  const CAM_D = 1;
+  const ROAD_HALF = 1080;
+  const BASE_SPEED = SEG * 11;
+  const PREF_KEY = 'retrodrive.prefs.v1';
+
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const crtEl = $('crt');
+  const panel = $('panel');
+  const menuBtn = $('menuBtn');
+  const statusEl = $('status');
+  const pauseTag = $('pauseTag');
+
+  const view = { w: 320, h: 180, portrait: false, horizon: 80 };
+  const keys = { left: false, right: false };
+  let touchSteer = 0;
+  let steerInput = 0;
+
+  let route = 'auto';
+  let timeMode = 'auto';
+  let speedMul = 1;
+  let volume = 0.4;
+  let manual = false;
+  let crt = false;
+  let paused = false;
+  let soundWanted = false;
+  let audio = null;
+
+  let position = 26 * SEG;
+  let playerX = 0;
+  let heading = 0;
+  let time = 0.2;
+  let segments = [];
+  let segBase = 0;
+  const gen = {
+    biome: 'forest', nextBiome: 'desert', mode: 'body',
+    segsInBiome: 0, targetLen: 720,
+    pieceQueue: [], pieceLeft: 0, cur: null,
+    slope: 0, elev: 0, curve: 0
+  };
+
+  const cars = [];
+  const palCache = new Map();
+  const spriteCache = new Map();
+  const backCache = new Map();
+  let uiUntil = 0;
+  let overPanel = false;
+  let lastStatus = '';
+  let diag = { nan: 0, drawn: 0, bottom: 0, top: 0 };
+  let carRect = { x: 0, y: 0, w: 0, h: 0 };
+  let fps = 0, fpsAcc = 0, fpsT = 0;
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function lerpC(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  function css(c) { return 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')'; }
+  function C(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function isCol(v) { return Array.isArray(v) && v.length === 3 && typeof v[0] === 'number'; }
+  function hash(n) {
+    n = Math.imul(n ^ (n >>> 16), 0x7feb352d);
+    n = Math.imul(n ^ (n >>> 15), 0x846ca68b);
+    n = (n ^ (n >>> 16)) >>> 0;
+    return n / 4294967296;
+  }
+  function after(b) {
+    const i = ORDER.indexOf(b);
+    return ORDER[(i + 1) % ORDER.length];
+  }
+  function mod(a, n) { return ((a % n) + n) % n; }
+
+  const PAL = {
+    forest: {
+      sig: 'dawn', sunY: 0.58, fogD: 1.05,
+      skyTop: C('#3c7598'), skyMid: C('#e89258'), skyHor: C('#ffd7a4'),
+      mtnFar: C('#8aa4bc'), mtnMid: C('#3f7a58'), mtnNear: C('#214833'),
+      groundL: [C('#34a64c'), C('#24843a')], groundR: [C('#2f9846'), C('#207838')],
+      shoulder: [C('#8a6844'), C('#6e5236')],
+      road: [C('#6c7382'), C('#4a5160')],
+      lane: C('#f2d56a'), rumble: [C('#f7f7f7'), C('#e23b32')],
+      fog: C('#f6d8b4'), cloud: C('#fff0dc'), sun: C('#ffe39a'),
+      field: [C('#34a64c'), C('#24843a'), C('#2f9846'), C('#207838')]
+    },
+    desert: {
+      sig: 'day', sunY: 0.30, fogD: 0.85,
+      skyTop: C('#3eb4ea'), skyMid: C('#f2d48a'), skyHor: C('#ffe6b4'),
+      mtnFar: C('#e09468'), mtnMid: C('#c86a48'), mtnNear: C('#a05240'),
+      groundL: [C('#f0c56e'), C('#e2ae56')], groundR: [C('#e8bc64'), C('#d9a44c')],
+      shoulder: [C('#c48a48'), C('#b07840')],
+      road: [C('#9a9084'), C('#7e766c')],
+      lane: C('#f6e6b8'), rumble: [C('#fff8ea'), C('#d85a3c')],
+      fog: C('#f8e2b6'), cloud: C('#fff6e4'), sun: C('#fff2c4'),
+      field: [C('#f0c56e'), C('#e2ae56'), C('#e8bc64'), C('#d9a44c')]
+    },
+    coast: {
+      sig: 'day', sunY: 0.40, fogD: 0.62,
+      skyTop: C('#2f93d8'), skyMid: C('#8fd4f0'), skyHor: C('#fff0cc'),
+      mtnFar: C('#5eb0d4'), mtnMid: C('#1f7eae'), mtnNear: C('#146088'),
+      groundL: [C('#1490c8'), C('#1aa4dc')], groundR: [C('#f0d29a'), C('#e4c48a')],
+      shoulder: [C('#d8d2c6'), C('#c4beb2')],
+      road: [C('#626872'), C('#505660')],
+      lane: C('#f4e2a0'), rumble: [C('#ffffff'), C('#de4038')],
+      fog: C('#d4eef6'), cloud: C('#ffffff'), sun: C('#fff6d8'),
+      field: [C('#1490c8'), C('#1aa4dc'), C('#f0d29a'), C('#e4c48a')]
+    },
+    city: {
+      sig: 'dusk', sunY: 0.74, fogD: 1.15,
+      skyTop: C('#140c22'), skyMid: C('#7a2860'), skyHor: C('#ff8a52'),
+      mtnFar: C('#1a1424'), mtnMid: C('#241c30'), mtnNear: C('#100c18'),
+      groundL: [C('#2a2832'), C('#201e28')], groundR: [C('#262430'), C('#1c1a24')],
+      shoulder: [C('#3a3844'), C('#2e2c38')],
+      road: [C('#3e3c4c'), C('#2a2836')],
+      lane: C('#f0d080'), rumble: [C('#f2f2f2'), C('#ff5a3a')],
+      fog: C('#5c3058'), cloud: C('#e8b0c0'), sun: C('#ffb060'),
+      field: [C('#2a2832'), C('#201e28'), C('#262430'), C('#1c1a24')]
+    },
+    country: {
+      sig: 'day', sunY: 0.46, fogD: 0.7,
+      skyTop: C('#5eb0e4'), skyMid: C('#f2c888'), skyHor: C('#ffe3b4'),
+      mtnFar: C('#8eae72'), mtnMid: C('#6a9448'), mtnNear: C('#c4a05a'),
+      groundL: [C('#7ec04a'), C('#e2c056')], groundR: [C('#d8b44e'), C('#68a848')],
+      shoulder: [C('#c2a06a'), C('#a88858')],
+      road: [C('#7a7368'), C('#625c54')],
+      lane: C('#f6e08a'), rumble: [C('#fffaf0'), C('#d84840')],
+      fog: C('#f6e2c0'), cloud: C('#fff6ea'), sun: C('#ffe6b0'),
+      field: [C('#7ec04a'), C('#e6c44e'), C('#c46a48'), C('#8aaa58')]
+    },
+    mountain: {
+      sig: 'day', sunY: 0.34, fogD: 0.95,
+      skyTop: C('#4e96d4'), skyMid: C('#b7d6ee'), skyHor: C('#eef3f6'),
+      mtnFar: C('#f4f7fb'), mtnMid: C('#8a9098'), mtnNear: C('#5c646c'),
+      groundL: [C('#6a6668'), C('#564e52')], groundR: [C('#3d6a4e'), C('#2c5240')],
+      shoulder: [C('#8a8688'), C('#6e6a6c')],
+      road: [C('#5a5e68'), C('#444852')],
+      lane: C('#f0e6c0'), rumble: [C('#f4f4f4'), C('#d24a40')],
+      fog: C('#d5e2ee'), cloud: C('#f7fbff'), sun: C('#fff8e4'),
+      field: [C('#6a6668'), C('#564e52'), C('#3d6a4e'), C('#2c5240')]
+    }
+  };
+
+  function mapPal(p, fn) {
+    const o = { sig: p.sig, sunY: p.sunY, fogD: p.fogD };
+    for (const k in p) {
+      const v = p[k];
+      if (isCol(v)) o[k] = fn(v, k);
+      else if (Array.isArray(v) && isCol(v[0])) o[k] = v.map((c) => fn(c, k));
+      else o[k] = v;
+    }
+    return o;
+  }
+  function clampC(c) {
+    return [clamp(c[0], 0, 255), clamp(c[1], 0, 255), clamp(c[2], 0, 255)];
+  }
+  function grade(p, timeKey) {
+    if (!timeKey || timeKey === 'auto' || timeKey === 'sig' || timeKey === p.sig) return p;
+    if (timeKey === 'dawn') {
+      return mapPal(p, (c, k) => {
+        if (k === 'skyTop') return lerpC(c, [90, 80, 120], 0.35);
+        if (k === 'skyMid' || k === 'skyHor' || k === 'fog' || k === 'sun' || k === 'cloud')
+          return clampC([c[0] * 0.9 + 48, c[1] * 0.72 + 18, c[2] * 0.62]);
+        return clampC([c[0] * 1.04 + 10, c[1] * 0.94, c[2] * 0.88]);
+      });
+    }
+    if (timeKey === 'day') {
+      return mapPal(p, (c, k) => {
+        if (k === 'skyTop') return lerpC(c, [70, 168, 224], 0.62);
+        if (k === 'skyMid') return lerpC(c, [150, 206, 232], 0.5);
+        if (k === 'skyHor') return lerpC(c, [226, 236, 214], 0.4);
+        if (k === 'fog') return lerpC(c, [206, 220, 206], 0.45);
+        if (k.startsWith('mtn')) return clampC([c[0] * 0.95 + 8, c[1] * 1.05 + 8, c[2] * 1.05 + 8]);
+        return clampC([c[0] * 1.06 + 8, c[1] * 1.07 + 8, c[2] * 1.04 + 6]);
+      });
+    }
+    if (timeKey === 'dusk') {
+      return mapPal(p, (c, k) => {
+        if (k === 'skyTop') return lerpC(c, [26, 14, 46], 0.78);
+        if (k === 'skyMid') return lerpC(c, [128, 42, 78], 0.7);
+        if (k === 'skyHor') return lerpC(c, [244, 112, 64], 0.62);
+        if (k === 'fog') return lerpC(c, [92, 48, 72], 0.55);
+        if (k === 'sun') return C('#ffb060');
+        if (k.startsWith('mtn')) return clampC([c[0] * 0.5 + 10, c[1] * 0.4 + 6, c[2] * 0.55 + 12]);
+        return clampC([c[0] * 0.72 + 6, c[1] * 0.6, c[2] * 0.64]);
+      });
+    }
+    return mapPal(p, (c, k) => {
+      if (k === 'skyTop') return lerpC(c, [6, 8, 20], 0.9);
+      if (k === 'skyMid') return lerpC(c, [12, 16, 38], 0.86);
+      if (k === 'skyHor') return lerpC(c, [36, 28, 52], 0.72);
+      if (k === 'fog') return lerpC(c, [16, 18, 34], 0.78);
+      if (k === 'sun') return C('#e8eeff');
+      if (k === 'lane') return clampC([c[0] * 0.55 + 50, c[1] * 0.5 + 40, c[2] * 0.35 + 16]);
+      if (k === 'cloud') return C('#c8d0e8');
+      return clampC([c[0] * 0.4 + 6, c[1] * 0.42 + 8, c[2] * 0.5 + 14]);
+    });
+  }
+  function lerpPal(a, b, t) {
+    if (t <= 0) return a;
+    if (t >= 1) return b;
+    const o = {
+      sig: t < 0.5 ? a.sig : b.sig,
+      sunY: lerp(a.sunY, b.sunY, t),
+      fogD: lerp(a.fogD, b.fogD, t)
+    };
+    for (const k in a) {
+      if (k === 'sig' || k === 'sunY' || k === 'fogD') continue;
+      const A = a[k], B = b[k];
+      if (isCol(A)) o[k] = lerpC(A, B, t);
+      else if (Array.isArray(A)) o[k] = A.map((c, i) => lerpC(c, B[i], t));
+      else o[k] = A;
+    }
+    return o;
+  }
+  function getPal(biome, next, blend, timeKey) {
+    const b = clamp((blend * 8 + 0.5) | 0, 0, 8);
+    const tk = timeKey || 'auto';
+    const key = biome + '|' + next + '|' + b + '|' + tk;
+    let p = palCache.get(key);
+    if (!p) {
+      p = lerpPal(grade(PAL[biome], tk), grade(PAL[next], tk), b / 8);
+      palCache.set(key, p);
+      if (palCache.size > 240) palCache.clear();
+    }
+    return p;
+  }
+
+  function rect(g, x, y, w, h, col) { g.fillStyle = col; g.fillRect(x | 0, y | 0, w | 0, h | 0); }
+  function fillCircle(g, cx, cy, r, col) {
+    g.fillStyle = col;
+    const r2 = r * r;
+    for (let y = -r; y <= r; y++) {
+      const w = Math.round(Math.sqrt(Math.max(0, r2 - y * y)));
+      g.fillRect(cx - w, cy + y, w * 2 + 1, 1);
+    }
+  }
+  function fillTri(g, ax, ay, bx, by, cx, cy, col) {
+    g.fillStyle = col;
+    const pts = [[ax, ay], [bx, by], [cx, cy]].sort((p, q) => p[1] - q[1]);
+    const t = pts[0], m = pts[1], b = pts[2];
+    const y0 = Math.ceil(t[1]), y1 = Math.floor(b[1]);
+    const xat = (y, p, q) => (q[1] === p[1] ? p[0] : p[0] + (q[0] - p[0]) * ((y - p[1]) / (q[1] - p[1])));
+    for (let y = y0; y <= y1; y++) {
+      const xs = y < m[1] ? [xat(y, t, m), xat(y, t, b)] : [xat(y, m, b), xat(y, t, b)];
+      const L = Math.round(Math.min(xs[0], xs[1]));
+      const R = Math.round(Math.max(xs[0], xs[1]));
+      g.fillRect(L, y, Math.max(1, R - L + 1), 1);
+    }
+  }
+  function makeG(w, h) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    return { c, g };
+  }
+  function tone(hex, timeKey, emissive) {
+    if (!timeKey || timeKey === 'auto' || timeKey === 'sig') return hex;
+    if (emissive && (timeKey === 'night' || timeKey === 'dusk')) return hex;
+    let c = C(hex);
+    if (timeKey === 'night') c = [c[0] * 0.42 + 8, c[1] * 0.46 + 10, c[2] * 0.58 + 18];
+    else if (timeKey === 'dusk') c = [c[0] * 0.78 + 22, c[1] * 0.62 + 4, c[2] * 0.68 + 8];
+    else if (timeKey === 'dawn') c = [c[0] * 1.02 + 22, c[1] * 0.9 + 6, c[2] * 0.82];
+    else c = [c[0] * 1.05 + 8, c[1] * 1.06 + 8, c[2] * 1.02 + 4];
+    return css(clampC(c));
+  }
+
+  const COLS = {
+    forest: { leafD: '#1d4a30', leaf: '#2f8a48', leafL: '#7ec46a', trunk: '#6b4630', rock: '#6a6058' },
+    desert: { leafD: '#2c6a40', leaf: '#3e9454', leafL: '#8ec878', trunk: '#c48a58', rock: '#b06848', rockL: '#d49268' },
+    coast: { leafD: '#1c6840', leaf: '#2f9458', leafL: '#8ed07a', trunk: '#b07848', rock: '#d8d4cc', rockL: '#f2f0ea' },
+    city: { leafD: '#221c2c', leaf: '#2c2638', leafL: '#3a3448', trunk: '#141018', rock: '#ff4d88', rockL: '#46e0d8', win: '#1a1422', lit: '#ffd28a' },
+    country: { leafD: '#3a6a30', leaf: '#6aaa44', leafL: '#c6dc78', trunk: '#7a5234', rock: '#f3ecde', rockL: '#c4483c', win: '#f6e2a4' },
+    mountain: { leafD: '#3a4038', leaf: '#6a7078', leafL: '#f4f7fb', trunk: '#5a5048', rock: '#7a7674', rockL: '#b8b4b0' }
+  };
+
+  function paintPine(g, c, v) {
+    rect(g, 12, 36, 5, 12, c.trunk);
+    rect(g, 11, 34, 7, 3, c.trunk);
+    const shift = v === 1 ? 1 : v === 2 ? -1 : 0;
+    fillTri(g, 14 + shift, 2, 2, 18, 26, 18, c.leafD);
+    fillTri(g, 14 + shift, 8, 4, 26, 24, 26, c.leaf);
+    fillTri(g, 14 + shift, 16, 6, 34, 22, 34, c.leafD);
+    fillTri(g, 14 + shift, 22, 8, 40, 20, 40, c.leaf);
+    rect(g, 12 + shift, 6, 2, 8, c.leafL);
+  }
+  function paintRound(g, c, v) {
+    rect(g, 14, 26, 5, 14, c.trunk);
+    fillCircle(g, 16, 16, 13, c.leafD);
+    fillCircle(g, 14, 14, 10, c.leaf);
+    fillCircle(g, 11, 12, 5, c.leafL);
+    if (v === 1) fillCircle(g, 20, 18, 4, c.leafD);
+  }
+  function paintBush(g, c) {
+    fillCircle(g, 8, 8, 6, c.leafD);
+    fillCircle(g, 6, 7, 4, c.leaf);
+    rect(g, 4, 12, 8, 2, c.trunk);
+  }
+  function paintCactus(g, c, v) {
+    rect(g, 7, 10, 5, 20, c.leaf);
+    rect(g, 8, 8, 3, 4, c.leafL);
+    rect(g, 2, 14, 5, 3, c.leaf);
+    rect(g, 2, 10, 3, 6, c.leafD);
+    rect(g, 12, 16, 5, 3, c.leaf);
+    rect(g, 14, 12, 3, 7, c.leafL);
+    rect(g, 6, 28, 7, 3, c.trunk);
+    if (v === 1) rect(g, 8, 6, 2, 2, '#e85a78');
+    rect(g, 7, 14, 1, 1, c.leafD);
+    rect(g, 11, 20, 1, 1, c.leafD);
+  }
+  function paintRock(g, c) {
+    fillCircle(g, 9, 9, 7, c.rock);
+    rect(g, 4, 8, 10, 5, c.rockL);
+    rect(g, 5, 12, 8, 2, c.trunk);
+  }
+  function paintMesa(g, c) {
+    rect(g, 6, 10, 42, 8, c.rockL);
+    rect(g, 4, 16, 46, 6, c.rock);
+    fillTri(g, 6, 22, 0, 36, 14, 22, c.rock);
+    fillTri(g, 48, 22, 54, 36, 40, 22, c.trunk);
+    rect(g, 10, 22, 34, 14, c.rock);
+    rect(g, 8, 26, 38, 2, c.trunk);
+    rect(g, 12, 30, 30, 2, c.rockL);
+  }
+  function paintPalm(g, c, v) {
+    const dir = v === 1 ? -1 : 1;
+    for (let y = 0; y < 32; y++) {
+      const x = 16 + Math.round(Math.sin(y * 0.11) * 4 * dir + (v === 2 ? 2 : 0));
+      rect(g, x, 14 + y, 3, 1, y % 4 === 0 ? c.rock : c.trunk);
+    }
+    const cx = 16 + 4 * dir;
+    rect(g, cx - 2, 12, 5, 4, c.leafD);
+    for (let a = 0; a < 6; a++) {
+      const ang = (-2.4 + a * 0.85) + (dir < 0 ? Math.PI : 0) * 0;
+      for (let t = 1; t < 12; t++) {
+        const x = cx + Math.round(Math.cos(-2.6 + a * 0.95) * t);
+        const y = 12 + Math.round(Math.sin(-2.2 + a * 0.7) * t * 0.55);
+        rect(g, x, y, 2, 1, t < 5 ? c.leafL : c.leaf);
+      }
+    }
+  }
+  function paintBld(g, c, floors, winEvery, v, frame) {
+    const w = g.canvas.width, h = g.canvas.height;
+    rect(g, 0, 2, w, h - 2, c.leaf);
+    rect(g, 0, 0, w, 3, c.leafD);
+    rect(g, 0, h - 3, w, 3, c.trunk);
+    if (v === 1) rect(g, (w / 2) | 0, 0, 1, 8, c.leafL);
+    const seed = v * 17 + floors;
+    for (let y = 6; y < h - 6; y += winEvery) {
+      for (let x = 3; x < w - 4; x += 5) {
+        const on = hash(seed + x * 3 + y * 13 + frame * 29) > (c.lit ? 0.42 : 0.72);
+        rect(g, x, y, 2, 3, on ? (c.lit || '#ffd28a') : (c.win || '#141018'));
+      }
+    }
+    if (v === 2) {
+      rect(g, 2, (h * 0.55) | 0, w - 4, 3, frame ? c.rock : c.rockL);
+    }
+  }
+  function paintNeon(g, c, frame) {
+    rect(g, 10, 16, 2, 12, c.trunk);
+    rect(g, 2, 2, 18, 16, c.leafD);
+    rect(g, 4, 4, 14, 12, '#120c16');
+    rect(g, frame ? 6 : 5, 6, 4, 8, c.rock);
+    rect(g, 12, frame ? 6 : 8, 4, 4, c.rockL);
+    rect(g, 7, 12, 8, 2, frame ? c.rockL : c.rock);
+  }
+  function paintHouse(g, c, v) {
+    rect(g, 6, 16, 22, 14, c.rock);
+    fillTri(g, 17, 4, 2, 18, 32, 18, v === 1 ? '#3d5e94' : c.rockL);
+    rect(g, 15, 22, 5, 8, c.trunk);
+    rect(g, 8, 20, 5, 5, c.win || '#f6e2a4');
+    rect(g, 23, 20, 4, 4, c.win || '#f6e2a4');
+    rect(g, 24, 8, 3, 6, c.leafD);
+  }
+  function paintBarn(g, c) {
+    rect(g, 4, 14, 36, 14, c.rockL);
+    fillTri(g, 22, 2, 2, 16, 42, 16, c.rock);
+    rect(g, 16, 18, 12, 10, c.trunk);
+    rect(g, 18, 20, 3, 6, '#1a120c');
+    rect(g, 23, 20, 3, 6, '#1a120c');
+    rect(g, 6, 18, 6, 5, c.win || '#f6e2a4');
+  }
+  function paintPole(g, c) {
+    rect(g, 6, 4, 2, 36, c.trunk);
+    rect(g, 1, 6, 12, 2, c.leafD);
+    rect(g, 1, 5, 2, 2, c.rock);
+    rect(g, 11, 5, 2, 2, c.rock);
+    rect(g, 0, 8, 14, 1, c.leafL);
+  }
+  function paintFence(g, c) {
+    rect(g, 2, 3, 2, 9, c.trunk);
+    rect(g, 18, 3, 2, 9, c.trunk);
+    rect(g, 1, 4, 20, 2, c.rockL);
+    rect(g, 1, 8, 20, 2, c.rock);
+  }
+  function paintCliff(g, c, v) {
+    const w = g.canvas.width, h = g.canvas.height;
+    g.fillStyle = v === 1 ? '#6e675f' : '#5c564e';
+    g.beginPath();
+    g.moveTo(4, h);
+    g.lineTo(7, 18);
+    g.lineTo(13, 3);
+    g.lineTo(22, 9);
+    g.lineTo(w - 2, 16);
+    g.lineTo(w - 2, h);
+    g.fill();
+    rect(g, 12, 4, 8, 3, '#e4ddd2');
+    rect(g, 5, 20, 16, 2, '#3c3834');
+    rect(g, 14, 29, 16, 2, '#8d857c');
+    rect(g, 3, 40, 18, 2, '#3c3834');
+    rect(g, 20, 16, 8, 2, '#7a736c');
+  }
+  function paintRail(g, c) {
+    rect(g, 2, 6, 3, 10, '#8a9094');
+    rect(g, 19, 6, 3, 10, '#8a9094');
+    rect(g, 1, 6, 22, 3, '#d8dce0');
+    rect(g, 10, 6, 3, 3, '#e04840');
+  }
+  function paintLamp(g, c, frame) {
+    rect(g, 7, 12, 2, 24, c.trunk);
+    rect(g, 3, 10, 10, 2, '#8a9298');
+    rect(g, 5, 5, 6, 5, frame ? '#fff6c0' : '#ffe08a');
+    rect(g, 7, 6, 2, 2, '#fffef4');
+  }
+  function paintVehicle(g, style, body, dark) {
+    const glass = '#1a3044', lamp = '#ffd8c8', wheel = '#141414', rim = '#d8d8dc';
+    if (style === 1) {
+      rect(g, 4, 4, 20, 8, glass);
+      rect(g, 3, 12, 22, 8, body);
+      rect(g, 4, 14, 5, 3, lamp);
+      rect(g, 19, 14, 5, 3, lamp);
+      rect(g, 4, 20, 6, 6, wheel);
+      rect(g, 18, 20, 6, 6, wheel);
+      rect(g, 6, 22, 2, 2, rim);
+      rect(g, 20, 22, 2, 2, rim);
+      return;
+    }
+    if (style === 3) {
+      rect(g, 2, 6, 10, 6, glass);
+      rect(g, 1, 12, 14, 8, body);
+      rect(g, 14, 10, 12, 10, dark);
+      rect(g, 2, 14, 4, 2, lamp);
+      rect(g, 2, 20, 6, 6, wheel);
+      rect(g, 18, 20, 6, 6, wheel);
+      return;
+    }
+    const low = style === 2;
+    rect(g, 8, low ? 6 : 4, 12, low ? 5 : 7, glass);
+    rect(g, 4, 12, 20, low ? 6 : 8, body);
+    rect(g, 3, 14, 6, 3, '#ff4030');
+    rect(g, 19, 14, 6, 3, '#ff4030');
+    rect(g, 6, low ? 13 : 12, 2, 6, '#f4ead8');
+    rect(g, 4, 20, 6, 6, wheel);
+    rect(g, 18, 20, 6, 6, wheel);
+    rect(g, 6, 22, 2, 2, rim);
+    rect(g, 20, 22, 2, 2, rim);
+    rect(g, 11, 18, 6, 3, dark);
+  }
+  function paintPlayer(g) {
+    const body = '#e23d3a', dark = '#9a2428', deep = '#6e1820', light = '#ff7a72';
+    const glass = '#163044', glassHi = '#4a7894', stripe = '#f6edd8';
+    const bumper = '#26282c', lamp = '#ff2e24', lampC = '#ffd0c4';
+    rect(g, 16, 1, 18, 2, deep);
+    rect(g, 14, 3, 22, 2, dark);
+    rect(g, 15, 5, 20, 2, dark);
+    rect(g, 17, 7, 16, 7, glass);
+    rect(g, 18, 8, 14, 2, glassHi);
+    rect(g, 19, 11, 3, 3, '#0e1c28');
+    rect(g, 28, 11, 3, 3, '#0e1c28');
+    rect(g, 14, 7, 3, 8, dark);
+    rect(g, 33, 7, 3, 8, dark);
+    rect(g, 8, 15, 3, 2, deep);
+    rect(g, 39, 15, 3, 2, deep);
+    rect(g, 10, 15, 30, 6, body);
+    rect(g, 12, 15, 2, 3, light);
+    rect(g, 36, 15, 2, 3, light);
+    rect(g, 23, 14, 4, 16, stripe);
+    rect(g, 6, 19, 38, 12, body);
+    rect(g, 4, 21, 2, 8, dark);
+    rect(g, 44, 21, 2, 8, dark);
+    rect(g, 7, 22, 9, 5, lamp);
+    rect(g, 34, 22, 9, 5, lamp);
+    rect(g, 8, 23, 4, 2, lampC);
+    rect(g, 35, 23, 4, 2, lampC);
+    rect(g, 6, 31, 38, 4, bumper);
+    rect(g, 3, 32, 3, 2, bumper);
+    rect(g, 44, 32, 3, 2, bumper);
+    rect(g, 21, 31, 8, 4, '#f3e2a0');
+    rect(g, 23, 32, 1, 2, '#2a2418');
+    rect(g, 25, 32, 1, 2, '#2a2418');
+    rect(g, 27, 32, 1, 2, '#2a2418');
+    rect(g, 12, 32, 3, 2, '#3a3a3a');
+    rect(g, 35, 32, 3, 2, '#3a3a3a');
+    rect(g, 5, 32, 9, 10, '#141414');
+    rect(g, 36, 32, 9, 10, '#141414');
+    rect(g, 7, 34, 5, 6, '#2a2a2a');
+    rect(g, 38, 34, 5, 6, '#2a2a2a');
+    rect(g, 8, 35, 3, 4, '#e6e6ea');
+    rect(g, 39, 35, 3, 4, '#e6e6ea');
+  }
+
+  const SPRITE_DEF = {
+    pine: { w: 28, h: 48, world: 1760, paint: paintPine },
+    round: { w: 34, h: 42, world: 1500, paint: paintRound },
+    bush: { w: 16, h: 14, world: 460, paint: paintBush },
+    cactus: { w: 20, h: 34, world: 1100, paint: paintCactus },
+    rock: { w: 18, h: 16, world: 560, paint: paintRock },
+    mesa: { w: 54, h: 36, world: 1680, paint: paintMesa },
+    palm: { w: 36, h: 50, world: 1880, paint: paintPalm },
+    bldA: { w: 28, h: 64, world: 2400, paint: (g, c, v, f) => paintBld(g, c, 6, 7, v, f) },
+    bldB: { w: 34, h: 84, world: 3400, paint: (g, c, v, f) => paintBld(g, c, 8, 6, v, f) },
+    bldC: { w: 42, h: 104, world: 4600, paint: (g, c, v, f) => paintBld(g, c, 10, 6, v + 1, f) },
+    neon: { w: 22, h: 30, world: 1200, paint: paintNeon },
+    house: { w: 34, h: 32, world: 1080, paint: paintHouse },
+    barn: { w: 44, h: 32, world: 1200, paint: paintBarn },
+    pole: { w: 14, h: 42, world: 1600, paint: paintPole },
+    fence: { w: 22, h: 14, world: 420, paint: paintFence },
+    cliff: { w: 36, h: 56, world: 2100, paint: paintCliff },
+    rail: { w: 24, h: 16, world: 420, paint: paintRail },
+    lamp: { w: 16, h: 36, world: 1100, paint: paintLamp },
+    parked: { w: 28, h: 26, world: 620, paint: null }
+  };
+
+  function spriteCols(biome, timeKey) {
+    const src = COLS[biome];
+    const o = { _t: timeKey };
+    for (const k in src) o[k] = tone(src[k], timeKey, k === 'lit' || k === 'rock' && biome === 'city' || k === 'rockL' && biome === 'city' || k === 'win');
+    if (biome === 'city') {
+      o.lit = src.lit;
+      o.rock = src.rock;
+      o.rockL = src.rockL;
+    }
+    if (biome === 'country') o.win = timeKey === 'night' || timeKey === 'dusk' ? '#ffe6a0' : src.win;
+    return o;
+  }
+  function getSprite(type, biome, timeKey, variant) {
+    const frame = variant >= 10 ? 1 : 0;
+    const v = variant % 10;
+    const key = type + '|' + biome + '|' + (timeKey || 'auto') + '|' + v + '|' + frame;
+    let img = spriteCache.get(key);
+    if (!img) {
+      const def = SPRITE_DEF[type];
+      const { c, g } = makeG(def.w, def.h);
+      const cols = spriteCols(biome, timeKey || 'auto');
+      if (type === 'parked') {
+        const bodies = ['#2f8f9a', '#f2e2c4', '#3d5ea8', '#e07a32', '#efece4', '#3e7a4a'];
+        paintVehicle(g, v % 4, bodies[v % bodies.length], '#2a241c');
+      } else def.paint(g, cols, v, frame);
+      img = c;
+      spriteCache.set(key, img);
+      if (spriteCache.size > 400) spriteCache.clear();
+    }
+    return img;
+  }
+  let playerImg = null;
+  function getPlayer() {
+    if (!playerImg) {
+      const { c, g } = makeG(50, 44);
+      paintPlayer(g);
+      playerImg = c;
+    }
+    return playerImg;
+  }
+  const trafficImgs = [];
+  function getTraffic(kind, colorIndex) {
+    const k = kind + '|' + colorIndex;
+    if (!trafficImgs[k]) {
+      const { c, g } = makeG(28, 26);
+      const bodies = ['#2f8f9a', '#f2e2c4', '#3d5ea8', '#e07a32', '#efece4', '#3e7a4a', '#c9a24a', '#6a4a8a'];
+      paintVehicle(g, kind, bodies[colorIndex % bodies.length], '#241c18');
+      trafficImgs[k] = c;
+    }
+    return trafficImgs[k];
+  }
+
+  function showcases(biome) {
+    const S = {
+      forest: [
+        { len: 8, curve: 0.5, slope: 0 },
+        { len: 20, curve: 2.8, slope: 62 },
+        { len: 16, curve: 2.4, slope: -8 },
+        { len: 20, curve: -2.6, slope: -58 },
+        { len: 18, curve: -1.2, slope: 20 },
+        { len: 24, curve: 1.6, slope: 28 }
+      ],
+      desert: [
+        { len: 14, curve: 0.3, slope: 4 },
+        { len: 90, curve: 1.35, slope: 22 },
+        { len: 80, curve: -1.55, slope: -8 },
+        { len: 50, curve: 0.4, slope: 16 }
+      ],
+      coast: [
+        { len: 12, curve: 0.35, slope: 0 },
+        { len: 100, curve: 1.15, slope: 0 },
+        { len: 70, curve: -1.25, slope: 2 },
+        { len: 40, curve: 0.3, slope: -2 }
+      ],
+      city: [
+        { len: 16, curve: 0.2, slope: 0 },
+        { len: 48, curve: 1.9, slope: 0 },
+        { len: 36, curve: 0.15, slope: 28 },
+        { len: 30, curve: -0.2, slope: -30 },
+        { len: 44, curve: -1.7, slope: 0 },
+        { len: 36, curve: 0.1, slope: 0 }
+      ],
+      country: [
+        { len: 12, curve: 0.4, slope: 6 },
+        { len: 60, curve: 2.1, slope: 26 },
+        { len: 54, curve: -2.0, slope: -12 },
+        { len: 40, curve: 0.5, slope: 14 },
+        { len: 36, curve: -0.35, slope: -22 }
+      ],
+      mountain: [
+        { len: 6, curve: 1.1, slope: 24 },
+        { len: 16, curve: 4.1, slope: 85 },
+        { len: 12, curve: 3.4, slope: -8 },
+        { len: 16, curve: -4.3, slope: -75 },
+        { len: 14, curve: -3.5, slope: 55 },
+        { len: 16, curve: 4.0, slope: 40 },
+        { len: 14, curve: 0.3, slope: -65 }
+      ]
+    };
+    return S[biome].map((p) => ({ len: p.len, curve: p.curve, slope: p.slope }));
+  }
+  function pattern(biome) {
+    const R = Math.random;
+    const q = (len, curve, slope) => ({ len, curve, slope });
+    if (biome === 'forest') return [q(22, 2.5 + R() * 0.4, 55), q(14, 2.1, -6), q(20, -2.4, -52), q(18, 0.5, 12)];
+    if (biome === 'desert') return [q(28, 1.3 + R() * 0.4, 24), q(16, 1.1, -4), q(24, -1.5, -18), q(20, 0.3, 8)];
+    if (biome === 'coast') return [q(36, 1.15 + R() * 0.3, 0), q(28, -1.2, 1), q(24, 0.4, 0)];
+    if (biome === 'city') return [q(24, 0.15, 0), q(18, 2.0, 0), q(16, 0.1, 32), q(14, 0, -34), q(20, -1.8, 0)];
+    if (biome === 'country') return [q(20, 1.9, 30), q(14, 1.4, -4), q(18, -1.8, -28), q(16, 0.3, 8)];
+    return [q(14, 4.0, 70), q(10, 3.2, -6), q(14, -4.2, -60), q(12, -3.2, 40), q(14, 3.8, 24), q(12, 0.2, -40)];
+  }
+
+  function desiredNext() {
+    if (route !== 'auto') return route;
+    return after(gen.biome);
+  }
+  function ensurePiece() {
+    if (gen.pieceLeft > 0) return;
+    if (gen.pieceQueue.length === 0) {
+      const want = desiredNext();
+      const needTrans = gen.mode === 'body' && want !== gen.biome && (route !== 'auto' || gen.segsInBiome >= gen.targetLen);
+      if (gen.mode === 'trans') {
+        gen.biome = gen.nextBiome;
+        gen.nextBiome = desiredNext();
+        if (gen.nextBiome === gen.biome && route !== 'auto') gen.nextBiome = gen.biome;
+        gen.mode = 'body';
+        gen.segsInBiome = 0;
+        gen.targetLen = 620 + Math.floor(Math.random() * 260);
+        gen.pieceQueue = pattern(gen.biome);
+      } else if (needTrans) {
+        gen.mode = 'trans';
+        gen.nextBiome = want;
+        const len = 118;
+        gen.pieceQueue = [{ len, curve: 0.12, slope: 0, trans: true, to: want }];
+      } else {
+        gen.nextBiome = want;
+        gen.pieceQueue = pattern(gen.biome);
+      }
+    }
+    gen.cur = gen.pieceQueue.shift();
+    gen.pieceLeft = Math.max(1, gen.cur.len | 0);
+  }
+  function spawnProp(i, biome, side) {
+    const h = hash(i * 17 + side * 131 + ORDER.indexOf(biome) * 17);
+    const h2 = hash(i * 49 + side * 19 + 3);
+    const h3 = hash(i * 91 + side * 7 + 11);
+    const P = (type, off, sc, variant) => ({ type, off, sc, variant: variant | 0, biome });
+    if (biome === 'forest') {
+      if (h > 0.72) return h > 0.9 ? P('bush', 30 + h2 * 200, 0.9, h3 * 2) : null;
+      const type = h3 > 0.55 ? 'pine' : 'round';
+      return P(type, 50 + h2 * 560, 0.82 + h3 * 0.45, h3 * 3);
+    }
+    if (biome === 'desert') {
+      if (h > 0.28) return null;
+      if (h < 0.08) return P('rock', 120 + h2 * 520, 0.9 + h3 * 0.6, 0);
+      return P('cactus', 70 + h2 * 480, 0.85 + h3 * 0.5, h3 * 2);
+    }
+    if (biome === 'coast') {
+      if (side === 0) {
+        if (i % 18 === 4) return P('lamp', 90, 0.85, i % 2);
+        return null;
+      }
+      if (i % 5 === 0) return P('palm', 160 + (i % 10) * 8, 0.95 + (i % 3) * 0.08, i % 3);
+      if (i % 17 === 2) return P('neon', 240, 1, 0);
+      return null;
+    }
+    if (biome === 'city') {
+      const block = i % 46;
+      if (block < 7) return null;
+      if (i % 22 === 5 && side === 1) return P('neon', 180, 1, h3 * 2);
+      if (i % 36 === 8) return P('parked', 36, 1, h3 * 4);
+      if (i % 3 === 2) return null;
+      const type = h < 0.33 ? 'bldA' : h < 0.7 ? 'bldB' : 'bldC';
+      return P(type, 40 + h2 * 160, 0.9 + h3 * 0.25, h3 * 3);
+    }
+    if (biome === 'country') {
+      if (i % 9 === 0) return P('pole', 80 + side * 40, 1, 0);
+      if (i % 2 === 0 && h > 0.45) return P('fence', 36, 1, 0);
+      if (i % 52 === 8 && side === 1) return P(h3 > 0.6 ? 'barn' : 'house', 180 + h2 * 80, 1, h3 * 2);
+      if (i % 52 === 12 && side === 1) return P('house', 260, 0.9, 1);
+      if (h > 0.82) return P(h3 > 0.5 ? 'round' : 'bush', 60 + h2 * 180, 0.8, 0);
+      return null;
+    }
+    if (side === 0) {
+      if (i % 5 === 0) return P('cliff', 280 + h2 * 120, 0.8 + h3 * 0.2, h3 * 2);
+      return null;
+    }
+    if (i % 4 === 0) return P('rail', 90, 0.85, 0);
+    if (h > 0.86) return P('rock', 80, 1, 0);
+    if (h < 0.06) return P('pine', 180, 0.7, 1);
+    return null;
+  }
+  function makeSegment(i) {
+    ensurePiece();
+    const p = gen.cur;
+    gen.curve += (p.curve - gen.curve) * 0.22;
+    let target = p.slope;
+    if (Math.abs(p.slope) < 0.8) target += -gen.elev * 0.02;
+    else target += -gen.elev * 0.003;
+    gen.slope += (target - gen.slope) * 0.2;
+    gen.elev += gen.slope;
+    if (gen.elev > 2600) gen.slope = Math.min(gen.slope, -4);
+    if (gen.elev < -600) gen.slope = Math.max(gen.slope, 4);
+    let blend = 0;
+    if (p.trans) blend = clamp(1 - (gen.pieceLeft - 1) / p.len, 0, 1);
+    gen.pieceLeft--;
+    gen.segsInBiome++;
+    const biome = gen.biome;
+    const next = p.trans ? p.to : gen.nextBiome;
+    const seg = {
+      i, y: gen.elev, curve: gen.curve,
+      biome, next, blend,
+      band: (i / 3 | 0) & 1,
+      lane: (i % 8) < 3,
+      L: null, R: null
+    };
+    seg.L = spawnProp(i, blend > hash(i * 3 + 1) ? next : biome, 0);
+    seg.R = spawnProp(i, blend > hash(i * 3 + 2) ? next : biome, 1);
+    return seg;
+  }
+  function seg(i) {
+    const k = i - segBase;
+    return k >= 0 && k < segments.length ? segments[k] : null;
+  }
+  function ensureAhead() {
+    const current = Math.floor(position / SEG);
+    const need = current + DRAW + 16;
+    let guard = 0;
+    while (segBase + segments.length <= need && guard < 600) {
+      segments.push(makeSegment(segBase + segments.length));
+      guard++;
+    }
+    const drop = current - 8 - segBase;
+    if (drop > 0) {
+      segments.splice(0, drop);
+      segBase += drop;
+    }
+  }
+  function initGen(biome, at) {
+    gen.biome = biome;
+    gen.nextBiome = after(biome);
+    gen.mode = 'body';
+    gen.segsInBiome = 0;
+    gen.targetLen = 700;
+    gen.pieceQueue = showcases(biome);
+    gen.pieceLeft = 0;
+    gen.cur = null;
+    gen.slope = 0;
+    gen.elev = 0;
+    gen.curve = 0;
+    segments = [];
+    segBase = 0;
+    position = (at == null ? 18 : at) * SEG;
+    ensureAhead();
+  }
+  function hurryToward(biome) {
+    if (biome === 'auto') return;
+    if (biome === gen.biome && gen.mode !== 'trans') return;
+    gen.nextBiome = biome;
+    gen.pieceQueue = [];
+    gen.pieceLeft = Math.min(gen.pieceLeft, 24);
+    gen.segsInBiome = Math.max(gen.segsInBiome, gen.targetLen);
+    if (gen.mode === 'trans' && gen.cur && gen.cur.trans) gen.cur.to = biome;
+  }
+
+  function resetCars() {
+    cars.length = 0;
+    const lanes = [-0.72, -0.38, 0.4, 0.7, -0.55, 0.58];
+    for (let i = 0; i < 6; i++) {
+      cars.push({
+        z: position + SEG * (28 + i * 16),
+        lane: lanes[i],
+        factor: i % 2 === 0 ? 0.68 + (i * 0.04) : 1.18 + (i * 0.03),
+        kind: i % 4,
+        color: i % 8
+      });
+    }
+  }
+  function updateCars(dt, spd) {
+    for (const c of cars) {
+      c.z += c.factor * spd * dt;
+      const dz = c.z - position;
+      if (dz > 0 && dz < SEG * 6 && Math.abs(c.lane - playerX) < 0.4) {
+        const dir = c.lane >= playerX ? 1 : -1;
+        c.lane = clamp(c.lane + dir * dt * 0.65, -0.92, 0.92);
+      }
+      if (dz < -SEG * 10 || dz > SEG * (DRAW + 40)) {
+        const lanes = [-0.75, -0.42, 0.46, 0.78];
+        c.lane = lanes[(Math.random() * lanes.length) | 0];
+        c.factor = Math.random() < 0.55 ? 0.6 + Math.random() * 0.28 : 1.12 + Math.random() * 0.28;
+        c.kind = (Math.random() * 4) | 0;
+        c.color = (Math.random() * 8) | 0;
+        c.z = position + SEG * (36 + Math.random() * 80);
+        for (const o of cars) {
+          if (o !== c && Math.abs(o.z - c.z) < SEG * 6 && Math.abs(o.lane - c.lane) < 0.3) c.z += SEG * 10;
+        }
+      }
+    }
+  }
+
+  function project(z, worldY, lat, playerY, horizon, W, H) {
+    const scale = CAM_D / z;
+    const rel = (worldY - playerY) * 1.8 - CAM_H;
+    const half = view.portrait ? ROAD_HALF * 0.74 : ROAD_HALF;
+    return {
+      z, scale,
+      sx: (W / 2) + scale * lat * (W / 2),
+      sy: horizon - scale * rel * (H / 2),
+      sw: scale * half * (W / 2)
+    };
+  }
+  function poly(pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+    ctx.closePath();
+    ctx.fill();
+  }
+  function trap(x1, y1, w1, x2, y2, w2) {
+    poly([x1 - w1, y1, x1 + w1, y1, x2 + w2, y2, x2 - w2, y2]);
+  }
+  function sideTrap(side, x1, y1, w1, x2, y2, w2, W) {
+    if (side < 0) poly([0, y1, x1 - w1, y1, x2 - w2, y2, 0, y2]);
+    else poly([W, y1, x1 + w1, y1, x2 + w2, y2, W, y2]);
+  }
+  function fogMix(c, fog, f) {
+    if (f <= 0) return c;
+    return lerpC(c, fog, f);
+  }
+
+  function ridge(g, w, h, base, amp, freq, seed, color, jagged) {
+    g.fillStyle = color;
+    for (let x = 0; x < w; x++) {
+      let n = Math.sin(x * freq + seed) * amp + Math.sin(x * freq * 2.17 + seed * 1.7) * amp * 0.38;
+      if (jagged) n += ((hash((x * 13 + seed * 10) | 0) * 2 - 1) * amp * 0.22);
+      const y = Math.round(base - n);
+      if (y < h) g.fillRect(x, y, 1, h - y);
+    }
+  }
+  function makeBackdrop(biome, pal, W, H) {
+    const bw = Math.max(W, 160) * 2;
+    const bh = Math.max(80, Math.round(H * 0.5));
+    const far = makeG(bw, bh);
+    const mid = makeG(bw, bh);
+    const horizon = bh - 1;
+    const f = css(pal.mtnFar), m = css(pal.mtnMid), n = css(pal.mtnNear);
+    if (biome === 'forest') {
+      ridge(far.g, bw, bh, horizon, bh * 0.28, Math.PI * 2 * 2 / bw, 1.2, f, false);
+      ridge(mid.g, bw, bh, horizon, bh * 0.22, Math.PI * 2 * 3 / bw, 2.4, m, true);
+      ridge(mid.g, bw, bh, horizon + 2, bh * 0.12, Math.PI * 2 * 5 / bw, 0.4, n, true);
+    } else if (biome === 'desert') {
+      ridge(far.g, bw, bh, horizon, bh * 0.08, Math.PI * 2 * 2 / bw, 0.6, f, false);
+      for (let i = 0; i < 6; i++) {
+        const x = Math.round((i + 0.2) * bw / 6);
+        const mw = 36 + (i % 3) * 22;
+        const mh = 14 + (i % 4) * 10;
+        far.g.fillStyle = i % 2 ? n : m;
+        far.g.fillRect(x, horizon - mh, mw, mh + 4);
+        far.g.fillStyle = f;
+        far.g.fillRect(x + 2, horizon - mh - 4, mw - 8, 6);
+      }
+      ridge(mid.g, bw, bh, horizon, bh * 0.1, Math.PI * 2 * 3 / bw, 1.1, css(pal.groundR[0]), false);
+    } else if (biome === 'coast') {
+      far.g.fillStyle = css(pal.groundL[1]);
+      far.g.fillRect(0, horizon - 8, bw, 10);
+      ridge(far.g, bw, bh, horizon - 6, bh * 0.12, Math.PI * 2 * 2 / bw, 0.8, f, false);
+      ridge(mid.g, bw, bh, horizon, bh * 0.05, Math.PI * 2 * 4 / bw, 1.5, css(pal.groundR[0]), false);
+    } else if (biome === 'city') {
+      far.g.fillStyle = n;
+      mid.g.fillStyle = m;
+      let x = 0, guard = 0;
+      while (x < bw + 40 && guard < 400) {
+        const bwth = 10 + Math.floor(hash(guard * 19 + 4) * 26);
+        const bhth = 16 + Math.floor(hash(guard * 23 + 8) * (bh * 0.78));
+        const dest = guard % 2 === 0 ? far.g : mid.g;
+        dest.fillStyle = guard % 3 === 0 ? n : m;
+        const dx = x >= bw ? x - bw : x;
+        dest.fillRect(dx, horizon - bhth, bwth - 2, bhth + 2);
+        if (x + bwth > bw && x < bw) dest.fillRect(0, horizon - bhth, (x + bwth - bw), bhth + 2);
+        dest.fillStyle = css(pal.sun);
+        if (hash(guard * 11) > 0.45) {
+          for (let wy = horizon - bhth + 4; wy < horizon - 4; wy += 6) {
+            if (hash(guard * 3 + wy) > 0.5) dest.fillRect(dx + 3, wy, 2, 2);
+          }
+        }
+        x += bwth;
+        guard++;
+      }
+    } else if (biome === 'country') {
+      ridge(far.g, bw, bh, horizon, bh * 0.2, Math.PI * 2 * 2 / bw, 0.5, f, false);
+      ridge(mid.g, bw, bh, horizon, bh * 0.14, Math.PI * 2 * 3 / bw, 1.3, m, false);
+      mid.g.fillStyle = n;
+      mid.g.fillRect(Math.round(bw * 0.62), horizon - 28, 16, 28);
+      fillTri(mid.g, bw * 0.62 + 8, horizon - 40, bw * 0.62 - 2, horizon - 26, bw * 0.62 + 18, horizon - 26, css(pal.road[0]));
+    } else {
+      const amp = bh * 0.46;
+      const freq = Math.PI * 2 * 2 / bw;
+      far.g.fillStyle = css(pal.mtnMid);
+      const snowCol = css(pal.mtnFar);
+      for (let x = 0; x < bw; x++) {
+        const n = Math.sin(x * freq + 0.8) * amp + Math.sin(x * freq * 2.1 + 1.4) * amp * 0.33;
+        const peak = Math.round(horizon - n * 0.15 - (amp * 0.55 + n * 0.45));
+        far.g.fillStyle = css(pal.mtnMid);
+        if (peak < bh) far.g.fillRect(x, peak, 1, bh - peak);
+        const snow = Math.max(4, Math.round((horizon - peak) * 0.16));
+        if (horizon - peak > amp * 0.42) {
+          far.g.fillStyle = snowCol;
+          far.g.fillRect(x, peak, 1, snow);
+        }
+      }
+      ridge(mid.g, bw, bh, horizon, bh * 0.16, Math.PI * 2 * 3 / bw, 2.2, n, false);
+    }
+    return { far: far.c, mid: mid.c };
+  }
+  function getBack(biome, timeKey, W, H) {
+    const key = biome + '|' + timeKey + '|' + W + '|' + H;
+    let b = backCache.get(key);
+    if (!b) {
+      const pal = getPal(biome, biome, 0, timeKey);
+      b = makeBackdrop(biome, pal, W, H);
+      backCache.set(key, b);
+      if (backCache.size > 24) backCache.clear();
+    }
+    return b;
+  }
+  function drawLayer(img, y, parallax) {
+    if (!img) return;
+    const iw = img.width;
+    const x0 = -Math.floor(mod(parallax, iw));
+    ctx.drawImage(img, x0, y);
+    ctx.drawImage(img, x0 + iw, y);
+    if (x0 + iw * 2 < view.w) ctx.drawImage(img, x0 + iw * 2, y);
+  }
+  function drawSky(pal, W, H, horizon) {
+    const bands = 14;
+    for (let i = 0; i < bands; i++) {
+      const t0 = i / bands, t1 = (i + 1) / bands;
+      const y0 = Math.round(t0 * (horizon + 6));
+      const y1 = Math.round(t1 * (horizon + 6));
+      const t = (t0 + t1) / 2;
+      let col;
+      if (t < 0.55) col = lerpC(pal.skyTop, pal.skyMid, t / 0.55);
+      else col = lerpC(pal.skyMid, pal.skyHor, (t - 0.55) / 0.45);
+      ctx.fillStyle = css(col);
+      ctx.fillRect(0, y0, W, Math.max(1, y1 - y0 + 1));
+    }
+  }
+  function drawSun(pal, W, horizon, night) {
+    const bob = Math.sin(time * 0.05) * 4;
+    const x = clamp(W * (0.62 + Math.sin(heading * 0.25) * 0.12) + bob, 16, W - 16);
+    const y = clamp(horizon * pal.sunY + Math.cos(heading * 0.2) * 3, 8, horizon - 6);
+    const r = night > 0.65 ? Math.max(3, (W * 0.02) | 0) : Math.max(5, (W * 0.035) | 0);
+    fillCircle(ctx, x | 0, y | 0, r + 3, night > 0.65 ? 'rgba(200,210,255,.25)' : 'rgba(255,220,140,.35)');
+    fillCircle(ctx, x | 0, y | 0, r, css(pal.sun));
+    if (night > 0.65) {
+      ctx.fillStyle = css(pal.skyTop);
+      fillCircle(ctx, (x | 0) - 2, (y | 0) - 1, Math.max(2, r - 2), css(pal.skyMid));
+      ctx.fillStyle = css(pal.sun);
+      fillCircle(ctx, x | 0, y | 0, r, css(pal.sun));
+      ctx.fillStyle = css(lerpC(pal.skyTop, pal.skyMid, 0.4));
+      fillCircle(ctx, (x | 0) + 2, (y | 0) - 1, Math.max(1, r - 2), css(lerpC(pal.skyTop, [20, 24, 48], 0.5)));
+    }
+    return { x, y, night };
+  }
+  function drawStars(W, horizon, amount) {
+    if (amount < 0.45) return;
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.35 + amount * 0.6) + ')';
+    for (let i = 0; i < 36; i++) {
+      if (hash(i * 17 + ((time * 2) | 0)) < 0.25) continue;
+      const x = (hash(i * 13) * W) | 0;
+      const y = (hash(i * 29) * horizon * 0.82) | 0;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  function drawClouds(pal, W, horizon) {
+    ctx.fillStyle = css(pal.cloud);
+    for (let i = 0; i < 5; i++) {
+      const spd = 6 + i * 2;
+      const x = mod(hash(i * 9) * W * 2 + time * spd + heading * (10 + i * 4), W + 40) - 20;
+      const y = 6 + hash(i * 5) * horizon * 0.42;
+      const r = 4 + (hash(i * 3) * 7) | 0;
+      fillCircle(ctx, x | 0, y | 0, r, css(pal.cloud));
+      fillCircle(ctx, (x + r) | 0, (y + 1) | 0, r * 0.7, css(pal.cloud));
+    }
+  }
+  function drawBirds(W, horizon, biome, night) {
+    if (night > 0.55) return;
+    if (biome === 'desert' || biome === 'city') return;
+    ctx.fillStyle = biome === 'mountain' ? '#2a3038' : '#1c1a22';
+    for (let i = 0; i < 3; i++) {
+      const x = mod(time * (18 + i * 7) + i * 80, W + 16) - 8;
+      const y = 10 + i * 8 + Math.sin(time * 2 + i) * 2;
+      if (y > horizon - 4) continue;
+      const flap = Math.sin(time * 8 + i) > 0;
+      const ix = x | 0, iy = y | 0;
+      if (flap) {
+        ctx.fillRect(ix, iy, 2, 1);
+        ctx.fillRect(ix + 3, iy, 2, 1);
+        ctx.fillRect(ix + 2, iy + 1, 1, 1);
+      } else {
+        ctx.fillRect(ix + 1, iy, 1, 1);
+        ctx.fillRect(ix + 3, iy, 1, 1);
+        ctx.fillRect(ix + 2, iy + 1, 1, 1);
+      }
+    }
+  }
+  function drawShafts(sun, W, horizon, amount) {
+    if (!sun || amount < 0.35) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, W, horizon + 8);
+    ctx.clip();
+    ctx.globalAlpha = 0.16 * amount;
+    ctx.fillStyle = '#ffe7b0';
+    for (let k = 0; k < 4; k++) {
+      const a = time * 0.08 + k * 1.3;
+      const x2 = sun.x + Math.sin(a) * W * 0.42;
+      ctx.beginPath();
+      ctx.moveTo(sun.x, sun.y);
+      ctx.lineTo(x2, horizon + 6);
+      ctx.lineTo(x2 + 14, horizon + 6);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function biomeWeight(seg, name) {
+    let w = 0;
+    if (seg.biome === name) w += 1 - seg.blend;
+    if (seg.next === name) w += seg.blend;
+    return w;
+  }
+
+  function render() {
+    const W = view.w, H = view.h;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.imageSmoothingEnabled = false;
+    const baseI = Math.floor(position / SEG);
+    const baseP = position / SEG - baseI;
+    const base = seg(baseI) || segments[0];
+    const nxt = seg(baseI + 1) || base;
+    if (!base) return;
+    const timeKey = timeMode;
+    const pal = getPal(base.biome, base.next, base.blend, timeKey);
+    const horizon = view.horizon;
+    const night = timeKey === 'night' ? 1 : timeKey === 'dusk' ? 0.35 : (timeKey === 'auto' && pal.sig === 'dusk' ? 0.22 : 0);
+
+    drawSky(pal, W, H, horizon);
+    const sun = drawSun(pal, W, horizon, night);
+    drawStars(W, horizon, night);
+    drawClouds(pal, W, horizon);
+
+    const bA = getBack(base.biome, timeKey, W, H);
+    const parallaxFar = heading * 34;
+    const parallaxMid = heading * 62;
+    const layerY = Math.round(horizon - bA.far.height + 2);
+    if (base.blend > 0.02 && base.next !== base.biome) {
+      const bB = getBack(base.next, timeKey, W, H);
+      drawLayer(bA.far, layerY, parallaxFar);
+      ctx.globalAlpha = base.blend;
+      drawLayer(bB.far, layerY, parallaxFar);
+      ctx.globalAlpha = 1;
+      drawLayer(bA.mid, layerY + 4, parallaxMid);
+      ctx.globalAlpha = base.blend;
+      drawLayer(bB.mid, layerY + 4, parallaxMid);
+      ctx.globalAlpha = 1;
+    } else {
+      drawLayer(bA.far, layerY, parallaxFar);
+      drawLayer(bA.mid, layerY + 4, parallaxMid);
+    }
+    drawBirds(W, horizon, base.biome, night);
+
+    ctx.fillStyle = css(pal.fog);
+    ctx.fillRect(0, horizon, W, H - horizon);
+
+    const playerY = lerp(base.y, nxt.y, baseP);
+    const playerOff = playerX * (view.portrait ? ROAD_HALF * 0.74 : ROAD_HALF);
+    let x = 0;
+    let dx = -(base.curve * baseP);
+    const draws = [];
+    let clip = H + 4;
+    diag.nan = 0;
+    for (let n = 0; n < DRAW; n++) {
+      const s1 = seg(baseI + n);
+      const s2 = seg(baseI + n + 1);
+      if (!s1 || !s2) break;
+      const z1 = (baseI + n) * SEG - position;
+      const z2 = z1 + SEG;
+      if (!(z1 > 6) || !(z2 > 6)) {
+        x += dx;
+        dx += s1.curve;
+        continue;
+      }
+      const p1 = project(z1, s1.y, x - playerOff, playerY, horizon, W, H);
+      const p2 = project(z2, s2.y, x + dx - playerOff, playerY, horizon, W, H);
+      const curveNow = s1.curve;
+      const lat = x;
+      x += dx;
+      dx += curveNow;
+      if (!isFinite(p1.sy) || !isFinite(p2.sy) || !isFinite(p1.sw)) { diag.nan++; continue; }
+      if (p2.sy >= clip) continue;
+      let x1 = p1.sx, y1 = p1.sy, w1 = p1.sw;
+      let x2 = p2.sx, y2 = p2.sy, w2 = p2.sw;
+      const hidden = p1.sy > clip + 1;
+      if (y1 > clip) {
+        const denom = y1 - y2 || 1;
+        const t = clamp((clip - y2) / denom, 0, 1);
+        y1 = clip;
+        x1 = x2 + (x1 - x2) * t;
+        w1 = w2 + (w1 - w2) * t;
+      }
+      y1 = Math.round(y1) + 1;
+      y2 = Math.round(y2);
+      if (y1 <= y2) continue;
+      w1 = clamp(w1, 0.5, W * 5);
+      w2 = clamp(w2, 0, W * 5);
+      draws.push({
+        x1, y1, w1, x2, y2, w2, s1, n, z1, z2, hidden,
+        scale: p1.scale, clipY: clip, lat
+      });
+      clip = y1;
+    }
+    if (draws.length) {
+      const d = draws[0];
+      if (d.y1 < H + 2) {
+        const span = Math.max(1, d.y1 - d.y2);
+        const extra = H + 3 - d.y1;
+        d.x1 += (d.x1 - d.x2) * (extra / span);
+        d.w1 += (d.w1 - d.w2) * (extra / span);
+        d.w1 = clamp(d.w1, 1, W * 5);
+        d.x1 = clamp(d.x1, -W * 3, W * 4);
+        d.y1 = H + 3;
+      }
+      diag.bottom = d.y1;
+      diag.top = draws[draws.length - 1].y2;
+    }
+    diag.drawn = draws.length;
+    diag.bend = draws.length > 36 ? Math.round(draws[36].x1 - W / 2) : 0;
+    diag.hill = draws.length > 28 ? Math.round(horizon - draws[28].y2) : 0;
+
+    for (let i = draws.length - 1; i >= 0; i--) {
+      const d = draws[i];
+      const s = d.s1;
+      const sp = getPal(s.biome, s.next, s.blend, timeKey);
+      const f = Math.round((1 - Math.exp(-(d.n / DRAW) * sp.fogD * 2.4)) * 5) / 5;
+      const coastW = biomeWeight(s, 'coast');
+      const countryW = biomeWeight(s, 'country');
+      const desertW = biomeWeight(s, 'desert');
+      let gL = sp.groundL[s.band];
+      let gR = sp.groundR[s.band];
+      if (countryW > 0.45) {
+        const fc = sp.field[(s.i / 12 | 0) % sp.field.length];
+        gL = lerpC(gL, fc, countryW);
+        gR = lerpC(gR, sp.field[(s.i / 12 + 1 | 0) % sp.field.length], countryW);
+      }
+      if (desertW > 0.4) {
+        const jit = 10 * Math.sin(s.i * 0.18);
+        gL = [gL[0] + jit, gL[1] + jit * 0.4, gL[2]];
+        gR = [gR[0] + jit, gR[1] + jit * 0.3, gR[2]];
+      }
+      if (coastW > 0.4) {
+        const sh = 0.5 + 0.5 * Math.sin(s.i * 0.65 + time * 2);
+        gL = lerpC(sp.groundL[0], sp.groundL[1], sh);
+      }
+      gL = fogMix(gL, sp.fog, f);
+      gR = fogMix(gR, sp.fog, f);
+      const shC = fogMix(sp.shoulder[s.band], sp.fog, f);
+      const rum = fogMix(sp.rumble[s.band], sp.fog, f);
+      const road = fogMix(sp.road[s.band], sp.fog, f);
+      ctx.fillStyle = css(gL);
+      sideTrap(-1, d.x1, d.y1, 0, d.x2, d.y2, 0, W);
+      ctx.fillStyle = css(gR);
+      sideTrap(1, d.x1, d.y1, 0, d.x2, d.y2, 0, W);
+      ctx.fillStyle = css(shC);
+      trap(d.x1, d.y1, d.w1 * 1.28, d.x2, d.y2, d.w2 * 1.28);
+      if (coastW > 0.45) {
+        ctx.fillStyle = css(fogMix(sp.shoulder[0], sp.fog, f));
+        poly([
+          d.x1 - d.w1 * 1.42, d.y1, d.x1 - d.w1 * 1.12, d.y1,
+          d.x2 - d.w2 * 1.12, d.y2, d.x2 - d.w2 * 1.42, d.y2
+        ]);
+      }
+      ctx.fillStyle = css(rum);
+      trap(d.x1, d.y1, d.w1 * 1.07, d.x2, d.y2, d.w2 * 1.07);
+      ctx.fillStyle = css(road);
+      trap(d.x1, d.y1, d.w1 * 0.98, d.x2, d.y2, d.w2 * 0.98);
+      if (s.lane && d.w1 > 2) {
+        ctx.fillStyle = css(fogMix(sp.lane, sp.fog, f));
+        const lw1 = Math.max(0.6, d.w1 * 0.035);
+        const lw2 = Math.max(0.4, d.w2 * 0.035);
+        trap(d.x1, d.y1, lw1, d.x2, d.y2, lw2);
+      }
+      d.fog = f;
+      d.pal = sp;
+    }
+
+    const carsAt = new Map();
+    const passCars = [];
+    for (const c of cars) {
+      const dz = c.z - position;
+      if (dz < 560) { if (dz > -420) passCars.push(c); continue; }
+      const idx = Math.floor(c.z / SEG);
+      let arr = carsAt.get(idx);
+      if (!arr) carsAt.set(idx, arr = []);
+      arr.push(c);
+    }
+
+    for (let i = draws.length - 1; i >= 0; i--) {
+      const d = draws[i];
+      if (!d.hidden && d.z1 > 130) drawProp(d, d.s1.L, -1);
+      if (!d.hidden && d.z1 > 130) drawProp(d, d.s1.R, 1);
+      const list = carsAt.get(d.s1.i);
+      if (list) {
+        for (const c of list) drawTrafficOn(d, c);
+      }
+    }
+    for (const c of passCars) drawTrafficPass(c, draws[0], W, H);
+
+    const forestW = biomeWeight(base, 'forest');
+    drawShafts(sun, W, horizon, forestW * (1 - night));
+    drawAir(base, W, H, horizon);
+
+    drawPlayer(W, H, base, night);
+  }
+
+  function drawProp(d, prop, side) {
+    if (!prop) return;
+    const def = SPRITE_DEF[prop.type];
+    if (!def) return;
+    const frame = (prop.type === 'neon' || prop.type.startsWith('bld') || prop.type === 'lamp') ? ((time * 3) | 0) % 2 : 0;
+    const use = getSprite(prop.type, prop.biome || d.s1.biome, timeMode, (prop.variant | 0) + frame * 10);
+    const wob = (prop.biome === 'desert') && d.n > 70 ? Math.sin(time * 7 + d.s1.i) : 0;
+    const footX = d.x1 + side * (d.w1 + (prop.off / ROAD_HALF) * d.w1) + wob;
+    const footY = d.y1;
+    const scaleZ = CAM_D / Math.max(12, d.z1);
+    let pixH = scaleZ * def.world * prop.sc * (view.h / 2);
+    let pixW = pixH * (use.width / use.height);
+    const wide = view.w * (view.portrait ? 0.34 : 0.48);
+    if (pixW > wide) {
+      const k = wide / pixW;
+      pixW *= k;
+      pixH *= k;
+    }
+    if (pixH < 1 || pixH > view.h * 1.35) return;
+    const dx = Math.round(footX - pixW / 2);
+    const dy = Math.round(footY - pixH);
+    if (dy > d.clipY) return;
+    if (pixH > view.h * 0.72 && dx < view.w * 0.42 && dx + pixW > view.w * 0.58) return;
+    const a = d.n < 26 ? 1 : clamp(1 - Math.max(0, d.fog - 0.12) * 0.95, 0.18, 1);
+    ctx.save();
+    ctx.globalAlpha = a;
+    blitClip(use, dx, dy, Math.round(pixW), Math.round(pixH), d.clipY);
+    ctx.restore();
+  }
+  function propBiome(s, side) {
+    const prop = side < 0 ? s.L : s.R;
+    if (!prop) return s.biome;
+    const h = hash(s.i * 17 + (side < 0 ? 0 : 131) + 1);
+    return h < s.blend ? s.next : s.biome;
+  }
+  function blitClip(img, dx, dy, dw, dh, clipY) {
+    if (dw < 1 || dh < 1) return;
+    if (dy >= clipY) return;
+    let useH = dh;
+    if (dy + dh > clipY) useH = clipY - dy;
+    if (useH < 1) return;
+    const srcH = Math.max(1, Math.round(img.height * (useH / dh)));
+    ctx.drawImage(img, 0, 0, img.width, srcH, dx, dy, dw, useH);
+  }
+  function drawTrafficOn(d, c) {
+    const idx = d.s1.i;
+    const f = clamp((c.z / SEG) - idx, 0, 1);
+    const z = lerp(d.z1, d.z2, f);
+    if (z < 80) return;
+    const scale = CAM_D / z;
+    const x = lerp(d.x1, d.x2, f) + c.lane * lerp(d.w1, d.w2, f);
+    const y = lerp(d.y1, d.y2, f);
+    const img = getTraffic(c.kind, c.color);
+    const pixH = scale * 500 * (view.h / 2);
+    const pixW = pixH * (img.width / img.height);
+    if (pixH < 2 || pixH > view.h) return;
+    ctx.save();
+    ctx.globalAlpha = 1 - Math.min(0.9, d.fog);
+    const dx = Math.round(x - pixW / 2);
+    const dy = Math.round(y - pixH);
+    blitClip(img, dx, dy, Math.round(pixW), Math.round(pixH), d.clipY);
+    ctx.restore();
+  }
+  function drawTrafficPass(c, near, W, H) {
+    if (!near) return;
+    const dz = c.z - position;
+    const t = clamp((dz + 280) / (560 + 280), 0, 1);
+    const side = c.lane < 0 ? -1 : 1;
+    const img = getTraffic(c.kind, c.color);
+    const nearH = Math.min(H * 0.16, W * 0.22, CAM_D / 560 * 500 * (H / 2));
+    const pixH = lerp(Math.min(H * 0.22, W * 0.28), nearH, t);
+    const pixW = pixH * (img.width / img.height);
+    const footY = lerp(H + pixH * 0.35, Math.min(H - 2, near.y1), t);
+    const footX = lerp(W / 2 + side * W * 0.48, near.x1 + c.lane * near.w1 * 0.3, t);
+    ctx.save();
+    ctx.globalAlpha = clamp(t * 1.4, 0, 1);
+    ctx.drawImage(img, Math.round(footX - pixW / 2), Math.round(footY - pixH), Math.round(pixW), Math.round(pixH));
+    ctx.restore();
+  }
+  function drawAir(base, W, H, horizon) {
+    const desertW = biomeWeight(base, 'desert');
+    const coastW = biomeWeight(base, 'coast');
+    if (desertW > 0.5) {
+      ctx.fillStyle = 'rgba(255,228,180,.4)';
+      for (let k = 0; k < 10; k++) {
+        const px = mod(hash(k * 9) * W + time * (12 + k * 4), W) | 0;
+        const py = (horizon + 8 + hash(k * 3) * (H - horizon) * 0.55) | 0;
+        ctx.fillRect(px, py, 1, 1);
+      }
+    }
+    if (coastW > 0.45) {
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      for (let k = 0; k < 8; k++) {
+        const px = mod(hash(k * 19) * W + time * 20, W) | 0;
+        const py = (horizon + 6 + hash(k * 7) * (H * 0.18)) | 0;
+        ctx.fillRect(px, py, 1, 1);
+      }
+    }
+  }
+  function drawPlayer(W, H, base, night) {
+    const img = getPlayer();
+    const carW = Math.round(view.portrait ? W * 0.36 : Math.min(W * 0.2, H * 0.42));
+    const carH = Math.round(carW * (img.height / img.width));
+    const slope = (seg(Math.floor(position / SEG) + 1) || base).y - base.y;
+    const bob = Math.round(Math.sin(position * 0.012) * 1.2 + clamp(-slope * 0.035, -2, 2));
+    const lean = clamp(base.curve * 0.55 * speedMul + steerInput * 0.85, -1, 1);
+    const leanPx = Math.round(lean * Math.max(3, carW * 0.1));
+    const dx = Math.round(W / 2 - carW / 2 + playerX * W * 0.06);
+    const dy = Math.round(H - carH - Math.max(2, H * 0.018) + bob);
+    carRect = { x: dx, y: dy, w: carW, h: carH };
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    const sw = Math.round(carW * 0.62), sh = Math.max(2, Math.round(carH * 0.07));
+    ctx.fillRect(dx + Math.round((carW - sw) / 2), dy + carH - 1, sw, sh);
+    blitShear(img, dx, dy, carW, carH, leanPx);
+    if (night > 0.2 || (timeMode === 'auto' && (base.biome === 'city' || base.biome === 'forest'))) {
+      ctx.fillStyle = 'rgba(255,70,48,' + (0.25 + night * 0.45) + ')';
+      const glow = (fx, fy) => {
+        const row = Math.round(fy * carH);
+        const shift = carH < 2 ? 0 : Math.round(leanPx * (1 - row / (carH - 1)));
+        ctx.fillRect(dx + shift + Math.round(fx * carW) - 1, dy + row - 1, Math.max(2, Math.round(0.12 * carW)), 3);
+      };
+      glow(0.16, 0.52);
+      glow(0.70, 0.52);
+    }
+  }
+  function blitShear(img, dx, dy, dw, dh, leanPx) {
+    dw = Math.round(dw); dh = Math.round(dh);
+    if (dw < 2 || dh < 2) return;
+    if (!leanPx) {
+      ctx.drawImage(img, dx, dy, dw, dh);
+      return;
+    }
+    for (let row = 0; row < dh; row++) {
+      const shift = Math.round(leanPx * (1 - row / (dh - 1)));
+      const sy = Math.floor(row * img.height / dh);
+      const sh = Math.max(1, Math.ceil(img.height / dh));
+      ctx.drawImage(img, 0, sy, img.width, Math.min(sh, img.height - sy), dx + shift, dy + row, dw, 1);
+    }
+  }
+
+  function resize() {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const portrait = vh > vw * 1.08;
+    const minW = portrait ? 168 : 270;
+    const minH = portrait ? 260 : 150;
+    let px = Math.max(1, Math.floor(Math.min(vw / minW, vh / minH)));
+    let gw = Math.floor(vw / px), gh = Math.floor(vh / px);
+    const capW = portrait ? 230 : 360;
+    const capH = portrait ? 480 : 230;
+    if (gw > capW || gh > capH) {
+      px += 1;
+      gw = Math.floor(vw / px);
+      gh = Math.floor(vh / px);
+    }
+    if (gw < 148 || gh < 132) {
+      px = Math.max(1, px - 1);
+      gw = Math.max(148, Math.floor(vw / px));
+      gh = Math.max(132, Math.floor(vh / px));
+    }
+    view.w = gw; view.h = gh; view.portrait = portrait;
+    view.horizon = Math.round(gh * (portrait ? 0.40 : 0.43));
+    if (canvas.width !== gw || canvas.height !== gh) {
+      canvas.width = gw; canvas.height = gh;
+      backCache.clear();
+    }
+    canvas.style.width = (gw * px) + 'px';
+    canvas.style.height = (gh * px) + 'px';
+  }
+
+  function loadPrefs() {
+    try {
+      const raw = localStorage.getItem(PREF_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (typeof p.speed === 'number') speedMul = clamp(p.speed, 0.55, 1.65);
+      if (typeof p.route === 'string') route = p.route;
+      if (typeof p.time === 'string') timeMode = p.time;
+      if (typeof p.volume === 'number') volume = clamp(p.volume, 0, 1);
+      manual = !!p.manual;
+      crt = !!p.crt;
+      soundWanted = false;
+    } catch (e) { /* file:// or private mode */ }
+  }
+  function savePrefs() {
+    try {
+      localStorage.setItem(PREF_KEY, JSON.stringify({
+        v: 1, speed: speedMul, route, time: timeMode, volume, manual, crt, sound: false
+      }));
+    } catch (e) { /* ignore quota / file origin */ }
+  }
+  function syncUI() {
+    $('speed').value = String(speedMul);
+    $('speedVal').textContent = speedMul.toFixed(2) + '×';
+    $('volume').value = String(volume);
+    $('volVal').textContent = Math.round(volume * 100) + '%';
+    setPressed('route', route);
+    setPressed('time', timeMode);
+    setPressed('manual', manual ? '1' : '0');
+    setPressed('crt', crt ? '1' : '0');
+    crtEl.classList.toggle('on', crt);
+    $('steerHint').hidden = !manual;
+    $('btnSound').setAttribute('aria-pressed', soundWanted ? 'true' : 'false');
+    $('btnSound').textContent = soundWanted ? '音：あり' : '音：なし';
+    $('btnPause').textContent = paused ? 'つづける' : '一時停止';
+    pauseTag.hidden = !paused;
+    const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    $('btnFull').textContent = full ? 'もどる' : '全画面';
+    menuBtn.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true');
+    menuBtn.textContent = panel.hidden ? '設定' : 'とじる';
+  }
+  function setPressed(k, v) {
+    const row = panel.querySelector('[data-k="' + k + '"]');
+    if (!row) return;
+    row.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === String(v) ? 'true' : 'false'));
+  }
+  function refreshStatus() {
+    const s = seg(Math.floor(position / SEG));
+    if (!s) return;
+    let text = 'いま：' + (NAMES[s.biome] || s.biome);
+    if (s.blend > 0.12 && s.blend < 0.9 && s.next !== s.biome) text = NAMES[s.biome] + ' → ' + NAMES[s.next];
+    if (text !== lastStatus) { lastStatus = text; statusEl.textContent = text; }
+  }
+  function showPanel() {
+    panel.hidden = false;
+    uiUntil = performance.now() + 9000;
+    syncUI();
+  }
+  function hidePanel() {
+    panel.hidden = true;
+    syncUI();
+  }
+  function togglePanel() {
+    if (panel.hidden) showPanel(); else hidePanel();
+  }
+
+  function makeAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    const ac = new AC();
+    const master = ac.createGain();
+    master.gain.value = 0;
+    master.connect(ac.destination);
+    const osc1 = ac.createOscillator();
+    osc1.type = 'sawtooth';
+    osc1.frequency.value = 52;
+    const osc2 = ac.createOscillator();
+    osc2.type = 'triangle';
+    osc2.frequency.value = 104;
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 220;
+    filter.Q.value = 0.6;
+    const engineGain = ac.createGain();
+    engineGain.gain.value = 0.22;
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(engineGain);
+    engineGain.connect(master);
+    osc1.start();
+    osc2.start();
+    const len = ac.sampleRate * 2;
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    let n = 0;
+    for (let i = 0; i < len; i++) {
+      const white = Math.random() * 2 - 1;
+      n = n * 0.985 + white * 0.015;
+      data[i] = n * 4;
+    }
+    const noise = ac.createBufferSource();
+    noise.buffer = buf;
+    noise.loop = true;
+    const band = ac.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 480;
+    band.Q.value = 0.35;
+    const windGain = ac.createGain();
+    windGain.gain.value = 0.12;
+    noise.connect(band);
+    band.connect(windGain);
+    windGain.connect(master);
+    noise.start();
+    return { ac, master, osc1, osc2, filter, windGain };
+  }
+  function updateAudio() {
+    if (!audio) return;
+    const ac = audio.ac;
+    const spd = clamp(speedMul, 0.4, 1.8) * (paused ? 0.35 : 1);
+    const now = ac.currentTime;
+    audio.osc1.frequency.setTargetAtTime(46 + spd * 28, now, 0.12);
+    audio.osc2.frequency.setTargetAtTime(92 + spd * 36, now, 0.12);
+    audio.filter.frequency.setTargetAtTime(160 + spd * 180, now, 0.15);
+    audio.windGain.gain.setTargetAtTime(paused ? 0.02 : 0.04 + spd * 0.1, now, 0.2);
+    const g = soundWanted ? volume * 0.2 * (paused ? 0.25 : 1) : 0;
+    audio.master.gain.setTargetAtTime(g, now, 0.08);
+  }
+  function enableSound() {
+    soundWanted = true;
+    if (!audio) audio = makeAudio();
+    if (audio && audio.ac.state === 'suspended') audio.ac.resume();
+    updateAudio();
+    syncUI();
+  }
+  function disableSound() {
+    soundWanted = false;
+    if (audio) {
+      audio.master.gain.setTargetAtTime(0, audio.ac.currentTime, 0.05);
+      audio.ac.suspend();
+    }
+    syncUI();
+  }
+
+  function update(dt) {
+    dt = Math.min(0.05, dt);
+    if (paused) {
+      updateAudio();
+      return;
+    }
+    time += dt;
+    const spd = BASE_SPEED * speedMul;
+    const base = seg(Math.floor(position / SEG));
+    position += spd * dt;
+    if (base) heading += base.curve * spd * dt * 0.00042;
+    if (manual) {
+      if (steerInput) playerX = clamp(playerX + steerInput * dt * 1.25, -1.12, 1.12);
+      else playerX += (0 - playerX) * Math.min(1, dt * 0.85);
+    } else {
+      playerX += (0 - playerX) * Math.min(1, dt * 2.2);
+    }
+    ensureAhead();
+    updateCars(dt, spd);
+    updateAudio();
+    if (!panel.hidden && !overPanel && performance.now() > uiUntil) hidePanel();
+  }
+
+  function frame(now) {
+    if (!frame.last) frame.last = now;
+    let dt = (now - frame.last) / 1000;
+    frame.last = now;
+    if (dt > 0.1) dt = 0.1;
+    fpsAcc += dt; fpsT++;
+    if (fpsAcc >= 0.5) { fps = fpsT / fpsAcc; fpsT = 0; fpsAcc = 0; }
+    try {
+      update(dt);
+      render();
+      refreshStatus();
+    } catch (err) {
+      console.error(err);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function bind() {
+    menuBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePanel(); });
+    panel.addEventListener('pointerenter', () => { overPanel = true; });
+    panel.addEventListener('pointerleave', () => { overPanel = false; uiUntil = performance.now() + 2600; });
+    panel.addEventListener('pointerdown', () => { uiUntil = performance.now() + 9000; });
+    panel.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-v]');
+      if (!b) return;
+      const k = b.parentElement.dataset.k;
+      const v = b.dataset.v;
+      if (k === 'route') {
+        route = v;
+        if (v !== 'auto') hurryToward(v);
+        else gen.nextBiome = after(gen.biome);
+      } else if (k === 'time') {
+        timeMode = v;
+        palCache.clear();
+        backCache.clear();
+        spriteCache.clear();
+      } else if (k === 'manual') manual = v === '1';
+      else if (k === 'crt') crt = v === '1';
+      savePrefs();
+      syncUI();
+      uiUntil = performance.now() + 9000;
+    });
+    $('speed').addEventListener('input', (e) => {
+      speedMul = parseFloat(e.target.value);
+      $('speedVal').textContent = speedMul.toFixed(2) + '×';
+      savePrefs();
+      uiUntil = performance.now() + 9000;
+    });
+    $('volume').addEventListener('input', (e) => {
+      volume = parseFloat(e.target.value);
+      $('volVal').textContent = Math.round(volume * 100) + '%';
+      updateAudio();
+      savePrefs();
+      uiUntil = performance.now() + 9000;
+    });
+    $('btnPause').addEventListener('click', () => togglePause());
+    $('btnFull').addEventListener('click', () => toggleFull());
+    $('btnSound').addEventListener('click', () => {
+      if (soundWanted) disableSound();
+      else enableSound();
+      savePrefs();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') { keys.left = true; if (manual) e.preventDefault(); }
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') { keys.right = true; if (manual) e.preventDefault(); }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (e.target && (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT')) return;
+        togglePause();
+      }
+      if (e.code === 'KeyF') toggleFull();
+      if (e.code === 'Escape' && !panel.hidden) hidePanel();
+      steerInput = manual ? ((keys.left ? -1 : 0) + (keys.right ? 1 : 0)) : 0;
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+      steerInput = manual ? ((keys.left ? -1 : 0) + (keys.right ? 1 : 0) + touchSteer) : 0;
+    });
+    const steerFromX = (clientX) => {
+      const r = canvas.getBoundingClientRect();
+      const x = (clientX - r.left) / r.width;
+      if (x < 0.22) return -1;
+      if (x > 0.78) return 1;
+      return 0;
+    };
+    window.addEventListener('pointerdown', (e) => {
+      if (!manual) return;
+      if (e.target.closest('#panel, #menuBtn')) return;
+      touchSteer = steerFromX(e.clientX);
+      steerInput = touchSteer;
+    });
+    window.addEventListener('pointerup', () => {
+      touchSteer = 0;
+      steerInput = manual ? ((keys.left ? -1 : 0) + (keys.right ? 1 : 0)) : 0;
+    });
+    window.addEventListener('resize', resize);
+    document.addEventListener('fullscreenchange', syncUI);
+    document.addEventListener('webkitfullscreenchange', syncUI);
+    document.addEventListener('visibilitychange', () => {
+      if (!audio) return;
+      if (document.hidden) audio.ac.suspend();
+      else if (soundWanted && !paused) audio.ac.resume();
+    });
+    window.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  }
+  function togglePause() {
+    paused = !paused;
+    if (audio) {
+      if (paused) audio.ac.suspend();
+      else if (soundWanted) audio.ac.resume();
+    }
+    syncUI();
+  }
+  function toggleFull() {
+    const el = document.documentElement;
+    const active = document.fullscreenElement || document.webkitFullscreenElement;
+    try {
+      if (!active) {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) Promise.resolve(req.call(el)).catch(() => {});
+      } else {
+        const ex = document.exitFullscreen || document.webkitExitFullscreen;
+        if (ex) Promise.resolve(ex.call(document)).catch(() => {});
+      }
+    } catch (e) { /* unsupported */ }
+  }
+
+  function boot() {
+    if (!ctx) {
+      document.body.textContent = 'このブラウザでは Canvas を表示できません。';
+      return;
+    }
+    loadPrefs();
+    if (!ORDER.includes(route) && route !== 'auto') route = 'auto';
+    if (!['auto', 'dawn', 'day', 'dusk', 'night'].includes(timeMode)) timeMode = 'auto';
+    const startBiome = route !== 'auto' && ORDER.includes(route) ? route : 'forest';
+    initGen(startBiome, 18);
+    if (route !== 'auto' && route !== 'forest') {
+      /* already started in chosen biome */
+    }
+    resetCars();
+    resize();
+    bind();
+    syncUI();
+    window.__retro = {
+      advance(sec) {
+        const steps = Math.max(1, Math.round(sec / (1 / 60)));
+        const dt = sec / steps;
+        for (let i = 0; i < steps; i++) update(Math.min(0.05, dt));
+        render();
+      },
+      preview(biome) {
+        const b = ORDER.includes(biome) ? biome : 'forest';
+        initGen(b, 26);
+        resetCars();
+        render();
+      },
+      setPaused(v) { paused = !!v; syncUI(); },
+      setSpeed(v) { speedMul = clamp(v, 0.55, 1.65); syncUI(); savePrefs(); },
+      setRoute(v) {
+        route = v;
+        if (v !== 'auto' && ORDER.includes(v)) hurryToward(v);
+        syncUI(); savePrefs();
+      },
+      savePrefs,
+      state() {
+        const s = seg(Math.floor(position / SEG));
+        return {
+          biome: s && s.biome, next: s && s.next, blend: s ? s.blend : 0,
+          position, paused, speed: speedMul, route, time: timeMode,
+          manual, crt, soundWanted, audioStarted: !!audio,
+          w: view.w, h: view.h, portrait: view.portrait, horizon: view.horizon,
+          car: carRect, diag, fps, heading, mode: gen.mode, genBiome: gen.biome,
+          elev: s ? Math.round(s.y) : 0,
+          curv: s ? Math.round(s.curve * 100) / 100 : 0,
+          aheadY: (function () {
+            const a = seg(Math.floor(position / SEG) + 24);
+            return a ? Math.round(a.y) : null;
+          })()
+        };
+      }
+    };
+    requestAnimationFrame(frame);
+  }
+
+  if (location.protocol === 'http:' || location.protocol === 'https:') {
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = 'manifest.webmanifest';
+    document.head.appendChild(link);
+    const apple = document.createElement('link');
+    apple.rel = 'apple-touch-icon';
+    apple.href = 'icon-180.png';
+    document.head.appendChild(apple);
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
